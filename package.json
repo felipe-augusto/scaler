@@ -1,0 +1,21 @@
+{
+  "name": "scaler",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "author": "Felipe Santos <fesntmail@gmail.com> (felipecoder.com)",
+  "license": "ISC",
+  "dependencies": {
+    "async": "^2.1.4",
+    "cloudflare": "^1.0.5",
+    "do-wrapper": "^3.11.0",
+    "fs": "0.0.1-security",
+    "lodash": "^4.17.2",
+    "parse-domain": "^1.0.0",
+    "request": "^2.79.0"
+  }
+}
