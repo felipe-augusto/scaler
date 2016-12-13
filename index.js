@@ -30,7 +30,7 @@ api = new DigitalOcean(INFO.digital_ocean.key, 1000);
 setInterval(routine, 10000);
 
 function routine () {
-	api.dropletsGetAll({tag_name : INFO.project}, function (err, data, body) {
+	api.dropletsGetAll({tag_name : INFO.project + "-slave"}, function (err, data, body) {
 		var num_droplets = body.droplets.length;
 		async.map(body.droplets, getDropletData, function (err, results) {
 			// all droplets are functioning properly
