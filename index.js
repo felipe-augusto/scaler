@@ -4,10 +4,14 @@ var async = require('async');
 var _ = require('lodash');
 var parseDomain = require('parse-domain');
 
+// enviroment variable set in the docker container
+// this contais all info necessary
 var INFO = JSON.parse(process.env.INFO);
 
 var tmp = parseDomain(INFO.cloudflare.domain);
 var root_domain = tmp.domain + '.' + tmp.tld;
+
+// controls time
 var elapsed_time = new Date().getTime();
 
 var DOMAIN =  INFO.cloudflare.domain;
@@ -15,6 +19,7 @@ var ROOT_DOMAIN = root_domain;
 var MIN = INFO.scaler_rules.min;
 var MAX = INFO.scaler_rules.min;
 
+var DigitalOcean = require('do-wrapper');
 var CFClient = require('cloudflare');
 var client = new CFClient({
     email: INFO.cloudflare.email,
@@ -23,20 +28,22 @@ var client = new CFClient({
 
 var cpu = "/api/v1/data?chart=system.cpu&format=array&points=" + INFO.scaler_rules.interval + "&group=average&options=absolute|jsonwrap|nonzero&after=-" + INFO.scaler_rules.interval;
 
-var DigitalOcean = require('do-wrapper');
-
 api = new DigitalOcean(INFO.digital_ocean.key, 1000);
 
+// every 10 seconds information about the slaves
 setInterval(routine, 10000);
 
 function routine () {
 	api.dropletsGetAll({tag_name : INFO.project + "-slave"}, function (err, data, body) {
 		var num_droplets = body.droplets.length;
 		async.map(body.droplets, getDropletData, function (err, results) {
+			results = results.filter(function (item) {
+				return item != null;
+			})
 			// all droplets are functioning properly
 			console.log(results);
 			if(num_droplets == results.length) {
-				// need to check if the droplets has DNS
+				// sign droplets to the DNS if not exists
 				client.browseZones({name : ROOT_DOMAIN}).then(function (value) {
 					// domains does not have ZONE
 					if(value.result.length == 0) {
@@ -55,7 +62,7 @@ function routine () {
 								if(!_.includes(value, item)) {
 									createDNSRecord(item, zone, function (resp) {
 										console.log(resp);
-									})
+									});
 								};
 							})
 						})
@@ -67,6 +74,7 @@ function routine () {
 						var now_time = new Date().getTime();
 						var diff = (now_time - elapsed_time) / 1000;
 						var average = results.reduce(function(a, b) { return a + b; }) / results.length;
+						// show how long, and the average metric of cpu
 						console.log(diff, average);
 						// scale down rule
 						if(average < INFO.scaler_rules.down.percent && body.droplets.length > INFO.scaler_rules.min && diff > INFO.scaler_rules.interval) {
@@ -87,7 +95,7 @@ function routine () {
 											api.dropletsDelete(droplet_id, function (resp) {
 												console.log(resp);
 												// change elapsed
-												elapsed_time = new Date().getTime() - 120;
+												elapsed_time = new Date().getTime();
 											})
 										})
 									})
@@ -97,9 +105,11 @@ function routine () {
 						// scale up rule
 						if(average > INFO.scaler_rules.up.percent && body.droplets.length < INFO.scaler_rules.max && diff > INFO.scaler_rules.interval) {
 							var slave_conf = fs.readFileSync('slave.conf', 'utf8');
+							// replace info
 							slave_conf = slave_conf.replace(/\$\(folder\)/g, splitGit(INFO.git));
 							slave_conf = slave_conf.replace(/\$\(url\)/g, INFO.git);
 							slave_conf = slave_conf.replace(/\$\(port\)/g, INFO.port);
+							// create
 							api.dropletsCreate({
 								"name": INFO.project + "-slave." + Math.floor((Math.random() * 1000) + 1),
 								"region": INFO.digital_ocean.region,
@@ -116,7 +126,7 @@ function routine () {
 								"user_data": slave_conf
 							},function (err, res, body) {
 									console.log(err);
-									elapsed_time = new Date().getTime() - 180;
+									elapsed_time = new Date().getTime();
 							});
 						}
 					} else {
